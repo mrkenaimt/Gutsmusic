@@ -18,7 +18,7 @@ if not os.path.exists(DOWNLOAD_DIR):
     os.makedirs(DOWNLOAD_DIR)
 
 YDL_DOWNLOAD_OPTS = {
-    'format': 'bestaudio/best',
+    'format': 'bestaudio/best/bestaudio[ext=m4a]/bestaudio[ext=webm]/worstaudio',
     'outtmpl': f'{DOWNLOAD_DIR}/%(id)s.%(ext)s',
     'postprocessors': [{
         'key': 'FFmpegExtractAudio',
@@ -27,7 +27,7 @@ YDL_DOWNLOAD_OPTS = {
     }],
     'quiet': True,
     'no_warnings': True,
-    'extractor_args': {'youtube': {'player_client': ['android', 'ios', 'web']}},
+    'extractor_args': {'youtube': {'player_client': ['android', 'ios', 'web', 'mweb', 'tv']}},
     'http_headers': {
         'User-Agent': 'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36',
     },
@@ -283,3 +283,4 @@ def callback(call):
 
 print("✅ البوت شغال...")
 bot.polling(none_stop=True, interval=1)
+    
