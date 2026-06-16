@@ -12,7 +12,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "MIATAAA Music Bot is Alive and Running 24/7!"
+    return "MIATAAA Music Bot is Alive and Running with GitHub Patch!"
 
 def run_web_server():
     port = int(os.environ.get("PORT", 8080))
@@ -20,7 +20,7 @@ def run_web_server():
 
 threading.Thread(target=run_web_server, daemon=True).start()
 
-# ====== 2. حل مشكلة الـ FFmpeg للاستضافات السحابية تلقائياً ======
+# ====== 2. حل مشكلة الـ FFmpeg تلقائياً ======
 try:
     import static_ffmpeg
     static_ffmpeg.add_paths()
@@ -33,21 +33,20 @@ except ImportError:
     except Exception as e:
         print(f"⚠️ فشل تهيئة static-ffmpeg: {e}")
 
-# ====== 3. تحديث أداة yt-dlp تلقائياً لضمان استقرار التحميل ======
+# ====== 3. تثبيت وتحديث yt-dlp مع ملحق تخطي الحظر الرسمي (POT) ======
 try:
-    subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--no-cache-dir", "--upgrade", "yt-dlp"],
-        check=True, timeout=60
-    )
+    # تحديث الأداة الأساسية
+    subprocess.run([sys.executable, "-m", "pip", "install", "--no-cache-dir", "--upgrade", "yt-dlp"], check=True)
+    # تثبيت ملحق تخطي Challenge يوتيوب المذكور في مجتمعات GitHub
+    subprocess.run([sys.executable, "-m", "pip", "install", "--no-cache-dir", "--upgrade", "yt-dlp-get-pot"], check=True)
+    print("✅ تم تثبيت حزمة yt-dlp-get-pot بنجاح لتخطي الحظر")
 except Exception as _e:
-    print(f"⚠️ تحديث yt-dlp فشل: {_e}")
+    print(f"⚠️ فشل تثبيت ملحقات التخطي: {_e}")
 
 import yt_dlp
-print(f"✅ yt-dlp version: {yt_dlp.version.__version__}")
 
 # ====== 4. إعداد البوت والتوكن الآمن ======
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
-
 if not BOT_TOKEN:
     raise SystemExit("❌ خطأ: تأكد من ضبط متغير BOT_TOKEN في إعدادات Render")
 
@@ -57,7 +56,7 @@ DOWNLOAD_DIR = 'downloads'
 if not os.path.exists(DOWNLOAD_DIR):
     os.makedirs(DOWNLOAD_DIR)
 
-# 🔥 الإعدادات السحرية لتخطي الحظر عبر محاكاة عملاء الأندرويد والتلفاز الذكي
+# الإعدادات الموصى بها في الـ GitHub لتجاوز البوت ديتكشن
 ydl_opts = {
     'format': 'bestaudio/best',
     'outtmpl': f'{DOWNLOAD_DIR}/%(id)s.%(ext)s',
@@ -69,10 +68,10 @@ ydl_opts = {
     'quiet': True,
     'nocheckcertificate': True,
     'prefer_insecure': True,
-    # الخدعة هنا: نحدد لـ yt-dlp أن يستعمل بروتوكولات الأجهزة الذكية المتسامحة مع الـ IPs السحابية
+    # تفعيل بروتوكول IOS والـ Web Client المحدث بدلاً من الأندرويد لثبات التوكن
     'extractor_args': {
         'youtube': {
-            'player_client': ['android', 'ios', 'tvhtml5'],
+            'player_client': ['ios', 'web'],
             'skip': ['dash', 'hls']
         }
     }
@@ -87,16 +86,16 @@ def start(message):
         parse_mode="Markdown"
     )
 
-# ====== البحث والتحميل الفوري المباشر والدقيق بنسبة 100% ======
+# ====== الاستماع للبحث والتحميل المباشر مع تطبيق الباتش ======
 @bot.message_handler(func=lambda m: m.text and not m.text.startswith('/'))
 def direct_download(message):
     query = message.text
     chat_id = message.chat.id
     
-    msg = bot.send_message(chat_id, f"🔍 *جاري البحث والتحميل المباشر لـ: {query}...*", parse_mode="Markdown")
+    msg = bot.send_message(chat_id, f"🔍 *جاري معالجة الطلب وتخطي الحظر لـ: {query}...*", parse_mode="Markdown")
 
     try:
-        # البحث المباشر عن أول نتيجة مطابقة تماماً في يوتيوب بالاعتماد على عميل الأندرويد
+        # استخدام البحث عن أول نتيجة مباشرة
         url = f"ytsearch1:{query}"
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -110,20 +109,18 @@ def direct_download(message):
             mp3_filename = os.path.splitext(filename)[0] + '.mp3'
             title = actual_info.get('title', query)
 
-        # حذف رسالة الانتظار
         try:
             bot.delete_message(chat_id, msg.message_id)
         except Exception:
             pass
 
-        # إرسال الملف الصوتي فوراً للمستخدم
         if os.path.exists(mp3_filename):
             with open(mp3_filename, 'rb') as audio:
                 bot.send_audio(
                     chat_id, audio,
                     title=title,
                     performer="MIATAAA",
-                    caption=f"✨ تم التحميل بنجاح عبر MIATAAA\n🎵 {title}"
+                    caption=f"✨ تم التحميل بنجاح بعد تخطي القيود\n🎵 {title}"
                 )
             os.remove(mp3_filename)
         else:
@@ -133,17 +130,16 @@ def direct_download(message):
                     bot.send_audio(chat_id, audio, title=title, performer="MIATAAA")
                 os.remove(actual_file)
             else:
-                raise FileNotFoundError("المصنف الصوتي غير موجود.")
+                raise FileNotFoundError("الملف الصوتي مفقود.")
 
     except Exception as e:
         try:
             bot.delete_message(chat_id, msg.message_id)
         except Exception:
             pass
-        bot.send_message(chat_id, "⚠️ يوتيوب قام بحظر الطلب مجدداً. السيرفرات المجانية تواجه قيوداً صارمة اليوم.")
-        print(f"🔥 Error during execution: {e}")
+        bot.send_message(chat_id, "⚠️ يوتيوب يفرض قيوداً معقدة حالياً، جرب اسماً آخر أو أعد المحاولة.")
+        print(f"🔥 Error logged: {e}")
 
 
-print("🚀 تم تفعيل نظام محاكاة الأندرويد والتلفاز الذكي وتصفية القوائم...")
+print("🚀 تم تشغيل البيئة بالباتش الموصى به من مجتمع المطورين...")
 bot.polling(none_stop=True, interval=1, skip_pending=True)
-        
