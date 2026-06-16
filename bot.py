@@ -6,6 +6,7 @@ import threading
 import telebot
 from telebot import types
 import requests
+import urllib.parse  # لضمان تشفير النصوص بشكل صحيح دون أخطاء
 from flask import Flask
 
 # ====== 1. فتح سيرفر ويب مصغر لإرضاء نظام الـ Port في Render ======
@@ -84,7 +85,7 @@ def fetch_lyrics(title, duration=0):
     clean = re.sub(r'\s+', ' ', clean).strip()
 
     try:
-        url = f"https://lrclib.net/api/search?q={requests.utils.quote(clean)}"
+        url = f"https://lrclib.net/api/search?q={urllib.parse.quote(clean)}"
         r = requests.get(url, headers=LRCLIB_HEADERS, timeout=10)
         if r.status_code == 200:
             results = r.json()
@@ -108,36 +109,34 @@ def start(message):
     )
 
 
-# ====== البحث المباشر المستقر عبر السيرفر البديل (تخطي حظر الـ IP بالكامل) ======
+# ====== البحث المباشر المستقر مع نظام حماية وفالباك ======
 @bot.message_handler(func=lambda m: m.text and not m.text.startswith('/'))
 def auto_search(message):
     query = message.text
     msg = bot.send_message(message.chat.id, "🔍 *جاري البحث الآمن...*", parse_mode="Markdown")
 
+    # تنظيف وتجهيز النص للبحث الآمن لتفادي الرموز الغريبة
+    safe_query = urllib.parse.quote(query)
+    results = []
+
+    # المحاولة الأولى: عبر Lrclib API
     try:
-        search_url = f"https://lrclib.net/api/search?q={requests.utils.quote(query)}"
-        response = requests.get(search_url, headers=LRCLIB_HEADERS, timeout=10)
-        
-        try:
-            bot.delete_message(message.chat.id, msg.message_id)
-        except Exception:
-            pass
+        search_url = f"https://lrclib.net/api/search?q={safe_query}"
+        response = requests.get(search_url, headers=LRCLIB_HEADERS, timeout=8)
+        if response.status_code == 200:
+            results = response.json()
+    except Exception as e:
+        print(f"Lrclib API Try Failed: {e}")
 
-        if response.status_code != 200 or not response.json():
-            markup = types.InlineKeyboardMarkup()
-            markup.add(types.InlineKeyboardButton(
-                text="🎵 اضغط هنا للتحميل المباشر",
-                callback_data=f"force_dl|{query[:40]}|0"
-            ))
-            return bot.send_message(
-                message.chat.id,
-                "⚠️ لم يتم جلب القائمة تلقائياً، يمكنك محاولة السحب المباشر:",
-                reply_markup=markup
-            )
+    # حذف رسالة الانتظار
+    try:
+        bot.delete_message(message.chat.id, msg.message_id)
+    except Exception:
+        pass
 
-        results = response.json()
+    # إذا نجح البحث ووجدنا نتائج نقوم بعرضها كالعادة
+    if results and isinstance(results, list):
         markup = types.InlineKeyboardMarkup()
-        
         for r in results[:5]:
             track_title = f"{r.get('artistName', '')} - {r.get('trackName', '')}"
             duration = r.get('duration', 0)
@@ -146,20 +145,26 @@ def auto_search(message):
                 callback_data=f"fdl|{track_title[:40]}|{duration}"
             ))
 
-        bot.send_message(
+        return bot.send_message(
             message.chat.id,
             "✨ *Here is what u ask for princess:*",
             reply_markup=markup,
             parse_mode="Markdown"
         )
-
-    except Exception as e:
-        try:
-            bot.delete_message(message.chat.id, msg.message_id)
-        except Exception:
-            pass
-        bot.send_message(message.chat.id, "⚠️ حدث خطأ غير متوقع أثناء معالجة البحث.")
-        print(f"Search Error: {e}")
+    
+    # الخطة الاحتياطية (Fallback): في حال تعطل محرك جلب النتائج، نقوم بإنشاء زر تحميل مباشر وفوري بالاسم المطلوب مباشرة
+    else:
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton(
+            text="📥 اضغط هنا للتحميل المباشر فوراً",
+            callback_data=f"fdl|{query[:40]}|0"
+        ))
+        return bot.send_message(
+            message.chat.id,
+            "💡 *لم نتمكن من عرض القائمة، اضغط على الزر أدناه لسحب الأغنية مباشرة باسمها:*",
+            reply_markup=markup,
+            parse_mode="Markdown"
+        )
 
 
 # ====== معالجة الأزرار والتحميل المستقر ======
@@ -168,11 +173,10 @@ def callback(call):
     chat_id = call.message.chat.id
     data = call.data
 
-    if data.startswith("fdl|") or data.startswith("force_dl|"):
+    if data.startswith("fdl|"):
         parts = data.split("|")
         search_query = parts[1]
         
-        # حماية معالجة الوقت من الأرقام العشرية (float) المنقولة كنصوص
         try:
             duration = int(float(parts[2])) if len(parts) > 2 else 0
         except Exception:
@@ -266,9 +270,9 @@ def callback(call):
                 bot.delete_message(chat_id, msg.message_id)
             except Exception:
                 pass
-            bot.send_message(chat_id, "⚠️ عذراً, حدث مشكل أثناء جلب الكلمات.")
+            bot.send_message(chat_id, "⚠️ عذراً، حدث مشكل أثناء جلب الكلمات.")
 
 
-print("✅ تم إصلاح الكود بالكامل، جاهز للتشغيل المستقر...")
+print("✅ تم تحصين نظام البحث والتحميل بنجاح...")
 bot.polling(none_stop=True, interval=1, skip_pending=True)
-                
+        
