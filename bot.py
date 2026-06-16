@@ -27,7 +27,7 @@ YDL_DOWNLOAD_OPTS = {
     }],
     'quiet': True,
     'no_warnings': True,
-    'extractor_args': {'youtube': {'player_client': ['ios', 'android']}},
+    'extractor_args': {'youtube': {'player_client': ['android', 'ios', 'web']}},
     'http_headers': {
         'User-Agent': 'Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36',
     },
@@ -283,3 +283,4 @@ def callback(call):
 
 print("✅ البوت شغال...")
 bot.polling(none_stop=True, interval=1)
+                
