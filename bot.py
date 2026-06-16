@@ -115,7 +115,6 @@ def auto_search(message):
     msg = bot.send_message(message.chat.id, "🔍 *جاري البحث الآمن...*", parse_mode="Markdown")
 
     try:
-        # البحث يتم هنا عبر الـ API العام المفتوح (تجاوز كامل ليوتيوب أثناء البحث)
         search_url = f"https://lrclib.net/api/search?q={requests.utils.quote(query)}"
         response = requests.get(search_url, headers=LRCLIB_HEADERS, timeout=10)
         
@@ -125,11 +124,10 @@ def auto_search(message):
             pass
 
         if response.status_code != 200 or not response.json():
-            # إذا فشل المحرك الأول، نستخدم البحث الاحتياطي برابط مباشر مرن
             markup = types.InlineKeyboardMarkup()
             markup.add(types.InlineKeyboardButton(
                 text="🎵 اضغط هنا للتحميل المباشر",
-                callback_data=f"force_dl|{query[:40]}"
+                callback_data=f"force_dl|{query[:40]}|0"
             ))
             return bot.send_message(
                 message.chat.id,
@@ -140,11 +138,9 @@ def auto_search(message):
         results = response.json()
         markup = types.InlineKeyboardMarkup()
         
-        # عرض أول 5 نتائج مستقرة للمستخدم
         for r in results[:5]:
             track_title = f"{r.get('artistName', '')} - {r.get('trackName', '')}"
             duration = r.get('duration', 0)
-            # ندمج نص البحث لكي يسحبه الـ downloader بدقة
             markup.add(types.InlineKeyboardButton(
                 text=f"🎵 {track_title[:40]}",
                 callback_data=f"fdl|{track_title[:40]}|{duration}"
@@ -175,16 +171,19 @@ def callback(call):
     if data.startswith("fdl|") or data.startswith("force_dl|"):
         parts = data.split("|")
         search_query = parts[1]
-        duration = int(parts[2]) if len(parts) > 2 else 0
+        
+        # حماية معالجة الوقت من الأرقام العشرية (float) المنقولة كنصوص
+        try:
+            duration = int(float(parts[2])) if len(parts) > 2 else 0
+        except Exception:
+            duration = 0
         
         msg = bot.send_message(chat_id, "📥 *جاري سحب وتجهيز الملف الصوتي...*", parse_mode="Markdown")
 
         try:
-            # التحميل المباشر باستخدام طريقة الجلب بالاسم (تتخطى الـ IP Block في التحميل)
             url = f"ytsearch1:{search_query}"
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
-                # التأكد من جلب الملف بشكل صحيح
                 if 'entries' in info and info['entries']:
                     actual_info = info['entries'][0]
                 else:
@@ -197,7 +196,7 @@ def callback(call):
             markup = types.InlineKeyboardMarkup()
             markup.add(types.InlineKeyboardButton(
                 "🎤 LYRICS",
-                callback_data=f"lyr|none|{int(duration)}"
+                callback_data=f"lyr|none|{duration}"
             ))
 
             if os.path.exists(mp3_filename):
@@ -234,7 +233,11 @@ def callback(call):
 
     elif data.startswith("lyr|"):
         parts = data.split("|")
-        duration = int(parts[2]) if len(parts) > 2 else 0
+        try:
+            duration = int(float(parts[2])) if len(parts) > 2 else 0
+        except Exception:
+            duration = 0
+            
         video_title = call.message.caption if call.message.caption else ""
         video_title = video_title.replace("✨ تم التحميل عبر MIATAAA\n🎵 ", "")
 
@@ -263,9 +266,9 @@ def callback(call):
                 bot.delete_message(chat_id, msg.message_id)
             except Exception:
                 pass
-            bot.send_message(chat_id, "⚠️ عذراً، حدث مشكل أثناء جلب الكلمات.")
+            bot.send_message(chat_id, "⚠️ عذراً, حدث مشكل أثناء جلب الكلمات.")
 
 
-print("✅ البوت مستقر بالكامل ومحمي من الحظر التلقائي...")
+print("✅ تم إصلاح الكود بالكامل، جاهز للتشغيل المستقر...")
 bot.polling(none_stop=True, interval=1, skip_pending=True)
-        
+                
