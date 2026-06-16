@@ -2,18 +2,34 @@ import os
 import re
 import subprocess
 import sys
+import threading
 import telebot
 from telebot import types
 import requests
+from flask import Flask
 
-# ====== 1. حل مشكلة الـ FFmpeg للاستضافات السحابية تلقائياً ======
+# ====== 1. تصنيع سيرفر ويب وهمي لإرضاء Render ونظام الـ Port ======
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "MIATAAA Music Bot is Alive and Running 24/7!"
+
+def run_web_server():
+    # Render يعطي الـ Port تلقائياً في متغير بيئي اسمه PORT، وإلا يستعمل 8080
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
+
+# تشغيل سيرفر الويب في Thread مستقل تماماً قبل تشغيل البوت
+threading.Thread(target=run_web_server, daemon=True).start()
+
+# ====== 2. حل مشكلة الـ FFmpeg للاستضافات السحابية تلقائياً ======
 try:
     import static_ffmpeg
     static_ffmpeg.add_paths()
     print("✅ FFmpeg تم تهيئته بنجاح عبر static-ffmpeg")
 except ImportError:
     try:
-        # إذا لم تكن المكتبة مثبتة في البيئة، يتم تحميلها وإعدادها فوراً
         subprocess.run([sys.executable, "-m", "pip", "install", "static-ffmpeg"], check=True)
         import static_ffmpeg
         static_ffmpeg.add_paths()
@@ -21,7 +37,7 @@ except ImportError:
     except Exception as e:
         print(f"⚠️ فشل تهيئة static-ffmpeg: {e}")
 
-# ====== 2. تحديث yt-dlp تلقائياً عند بدء التشغيل ======
+# ====== 3. تحديث yt-dlp تلقائياً عند بدء التشغيل ======
 try:
     subprocess.run(
         [sys.executable, "-m", "pip", "install", "--no-cache-dir", "--upgrade", "yt-dlp"],
@@ -33,11 +49,11 @@ except Exception as _e:
 import yt_dlp
 print(f"✅ yt-dlp version: {yt_dlp.version.__version__}")
 
-# جلب توكن البوت من المتغيرات البيئية للمنصة المستضيفة لحمايته
+# جلب توكن البوت من المتغيرات البيئية لحمايته[span_3](start_span)[span_3](end_span)
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 
 if not BOT_TOKEN:
-    raise SystemExit("❌ تأكدي من ضبط BOT_TOKEN في Variables على المنصة السحابية")
+    raise SystemExit("❌ تأكدي من ضبط BOT_TOKEN في Variables على المنصة السحابية")[span_4](start_span)[span_4](end_span)
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
@@ -45,7 +61,6 @@ DOWNLOAD_DIR = 'downloads'
 if not os.path.exists(DOWNLOAD_DIR):
     os.makedirs(DOWNLOAD_DIR)
 
-# ====== إعدادات yt-dlp المستقرة مع إضافة فلاتر الشهادات السحابية ======
 ydl_opts = {
     'format': 'bestaudio/best',
     'outtmpl': f'{DOWNLOAD_DIR}/%(id)s.%(ext)s',
@@ -124,7 +139,7 @@ def start(message):
     )
 
 
-# ====== البحث المباشر بالرسالة ======
+# ====== البحث المباشر ======
 @bot.message_handler(func=lambda m: m.text and not m.text.startswith('/'))
 def auto_search(message):
     query = message.text
@@ -196,7 +211,6 @@ def callback(call):
                 callback_data=f"lyr|{vid}|{int(duration)}"
             ))
 
-            # التحقق من وجود ملف MP3 بعد انتهاء معالجة الـ FFmpeg[span_4](start_span)[span_4](end_span)
             if os.path.exists(mp3_filename):
                 with open(mp3_filename, 'rb') as audio:
                     bot.send_audio(
@@ -208,7 +222,6 @@ def callback(call):
                     )
                 os.remove(mp3_filename)
             else:
-                # حل احتياطي إذا فشل الـ codec الصوتي وحُفظ الملف بامتداده الأساسي (m4a/webm)
                 actual_file = filename if os.path.exists(filename) else None
                 if actual_file:
                     with open(actual_file, 'rb') as audio:
@@ -306,5 +319,6 @@ def callback(call):
             print(f"More Error: {e}")
 
 
-print("✅ البوت شغال...")
+print("✅ البوت شغال بالكامل مع الخلفية...")
 bot.polling(none_stop=True, interval=1, skip_pending=True)
+                 
