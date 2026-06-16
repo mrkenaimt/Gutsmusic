@@ -8,7 +8,7 @@ from telebot import types
 import requests
 from flask import Flask
 
-# ====== 1. تصنيع سيرفر ويب وهمي لإرضاء Render ونظام الـ Port ======
+# ====== 1. فتح سيرفر ويب مصغر لإرضاء نظام الـ Port في Render ======
 app = Flask('')
 
 @app.route('/')
@@ -16,11 +16,11 @@ def home():
     return "MIATAAA Music Bot is Alive and Running 24/7!"
 
 def run_web_server():
-    # Render يعطي الـ Port تلقائياً في متغير بيئي اسمه PORT، وإلا يستعمل 8080
+    # Render يمرر الـ Port تلقائياً في متغير بيئي اسمه PORT
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
-# تشغيل سيرفر الويب في Thread مستقل تماماً قبل تشغيل البوت
+# تشغيل سيرفر الويب في Thread مستقل ليعمل بالتوازي مع البوت
 threading.Thread(target=run_web_server, daemon=True).start()
 
 # ====== 2. حل مشكلة الـ FFmpeg للاستضافات السحابية تلقائياً ======
@@ -37,7 +37,7 @@ except ImportError:
     except Exception as e:
         print(f"⚠️ فشل تهيئة static-ffmpeg: {e}")
 
-# ====== 3. تحديث yt-dlp تلقائياً عند بدء التشغيل ======
+# ====== 3. تحديث أداة yt-dlp تلقائياً لضمان استقرار التحميل ======
 try:
     subprocess.run(
         [sys.executable, "-m", "pip", "install", "--no-cache-dir", "--upgrade", "yt-dlp"],
@@ -49,11 +49,12 @@ except Exception as _e:
 import yt_dlp
 print(f"✅ yt-dlp version: {yt_dlp.version.__version__}")
 
-# جلب توكن البوت من المتغيرات البيئية لحمايته[span_3](start_span)[span_3](end_span)
+# ====== 4. إعداد البوت والتوكن الآمن ======
+# جلب التوكن من إعدادات البيئة (Environment Variables) لحمايته ومنع التداخل
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 
 if not BOT_TOKEN:
-    raise SystemExit("❌ تأكدي من ضبط BOT_TOKEN في Variables على المنصة السحابية")[span_4](start_span)[span_4](end_span)
+    raise SystemExit("❌ خطأ: تأكد من ضبط متغير BOT_TOKEN في إعدادات Render")
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
@@ -61,6 +62,7 @@ DOWNLOAD_DIR = 'downloads'
 if not os.path.exists(DOWNLOAD_DIR):
     os.makedirs(DOWNLOAD_DIR)
 
+# إعدادات تحميل الصوت المستقرة
 ydl_opts = {
     'format': 'bestaudio/best',
     'outtmpl': f'{DOWNLOAD_DIR}/%(id)s.%(ext)s',
@@ -74,18 +76,11 @@ ydl_opts = {
     'prefer_insecure': True
 }
 
-search_opts = {'quiet': True, 'default_search': 'ytsearch10', 'nocheckcertificate': True}
 info_opts = {'quiet': True, 'nocheckcertificate': True}
-
-if os.path.exists('cookies.txt'):
-    ydl_opts['cookiefile'] = 'cookies.txt'
-    search_opts['cookiefile'] = 'cookies.txt'
-    info_opts['cookiefile'] = 'cookies.txt'
-
 LRCLIB_HEADERS = {'User-Agent': 'MIATAA-Bot/1.0 (https://t.me/mrkenai)'}
 
 
-# ====== جلب الكلمات عبر lrclib.net ======
+# ====== دالة جلب كلمات الأغاني ======
 def fetch_lyrics(title, duration=0):
     clean = title.lower()
     clean = re.sub(r'\(official.*?\)|\[.*?\]', '', clean)
@@ -129,7 +124,7 @@ def fetch_lyrics(title, duration=0):
     return None
 
 
-# ====== /start ======
+# ====== أمر /start ======
 @bot.message_handler(commands=['start'])
 def start(message):
     bot.send_message(
@@ -139,15 +134,18 @@ def start(message):
     )
 
 
-# ====== البحث المباشر ======
+# ====== البحث المباشر المطور لتجاوز حظر يوتيوب للـ IP في Render ======
 @bot.message_handler(func=lambda m: m.text and not m.text.startswith('/'))
 def auto_search(message):
     query = message.text
-    msg = bot.send_message(message.chat.id, "🔍 *جاري البحث...*", parse_mode="Markdown")
+    msg = bot.send_message(message.chat.id, "🔍 *جاري البحث الآمن...*", parse_mode="Markdown")
 
     try:
-        with yt_dlp.YoutubeDL(search_opts) as ydl:
-            info = ydl.extract_info(f"ytsearch10:{query}", download=False)
+        # البحث يتم عبر خيار SoundCloud لتفادي الـ Block تماماً
+        safe_search_opts = {'quiet': True, 'default_search': 'scsearch5', 'nocheckcertificate': True}
+        
+        with yt_dlp.YoutubeDL(safe_search_opts) as ydl:
+            info = ydl.extract_info(f"scsearch5:{query}", download=False)
             results = info.get('entries', [])
 
         try:
@@ -156,14 +154,18 @@ def auto_search(message):
             pass
 
         if not results:
-            return bot.send_message(message.chat.id, "❌ لم أجد نتائج.")
+            return bot.send_message(message.chat.id, "❌ لم أجد نتائج لهذه الأغنية.")
 
         markup = types.InlineKeyboardMarkup()
         for r in results[:5]:
-            markup.add(types.InlineKeyboardButton(
-                text=f"🎵 {r['title'][:40]}",
-                callback_data=f"dl|{r['id']}"
-            ))
+            track_id = r.get('id')
+            track_title = r.get('title', 'Audio')
+            if track_id:
+                markup.add(types.InlineKeyboardButton(
+                    text=f"🎵 {track_title[:40]}",
+                    callback_data=f"dl|{track_id}"
+                ))
+                
         markup.add(types.InlineKeyboardButton(
             text="➕ More tracks",
             callback_data=f"more_{query[:20]}"
@@ -181,23 +183,24 @@ def auto_search(message):
             bot.delete_message(message.chat.id, msg.message_id)
         except Exception:
             pass
-        bot.send_message(message.chat.id, "⚠️ حدث خطأ أثناء البحث.")
+        bot.send_message(message.chat.id, "⚠️ حدث خطأ أثناء جلب النتائج.")
         print(f"Search Error: {e}")
 
 
-# ====== معالجة الأزرار ======
+# ====== معالجة الأزرار (التحميل وعرض الكلمات) ======
 @bot.callback_query_handler(func=lambda call: True)
 def callback(call):
     chat_id = call.message.chat.id
     data = call.data
 
-    # --- تحميل MP3 ---
+    # --- معالجة التحميل ---
     if data.startswith("dl|"):
-        vid = data.split("|", 1)[1]
-        msg = bot.send_message(chat_id, "📥 *جاري سحب الملف...*", parse_mode="Markdown")
+        track_id = data.split("|", 1)[1]
+        msg = bot.send_message(chat_id, "📥 *جاري سحب وتجهيز الملف...*", parse_mode="Markdown")
 
         try:
-            url = f"https://www.youtube.com/watch?v={vid}"
+            # التحميل المباشر من المعرف المستخرج بنجاح
+            url = f"https://soundcloud.com/{track_id}" if "/" in track_id else track_id
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
                 filename = ydl.prepare_filename(info)
@@ -208,7 +211,7 @@ def callback(call):
             markup = types.InlineKeyboardMarkup()
             markup.add(types.InlineKeyboardButton(
                 "🎤 LYRICS",
-                callback_data=f"lyr|{vid}|{int(duration)}"
+                callback_data=f"lyr|{track_id[:20]}|{int(duration)}"
             ))
 
             if os.path.exists(mp3_filename):
@@ -228,7 +231,7 @@ def callback(call):
                         bot.send_audio(chat_id, audio, title=title, performer="MIATAAA", reply_markup=markup)
                     os.remove(actual_file)
                 else:
-                    raise FileNotFoundError("تعذر تحديد موقع الملف الصوتي المحمل.")
+                    raise FileNotFoundError("الملف الصوتي مفقود.")
 
             try:
                 bot.delete_message(chat_id, msg.message_id)
@@ -246,18 +249,15 @@ def callback(call):
     # --- جلب الكلمات ---
     elif data.startswith("lyr|"):
         parts = data.split("|")
-        vid = parts[1]
         duration = int(parts[2]) if len(parts) > 2 else 0
+        
+        # نأخذ نص عنوان الرسالة للبحث عن الكلمات
+        video_title = call.message.caption if call.message.caption else ""
+        video_title = video_title.replace("✨ تم التحميل عبر MIATAAA\n🎵 ", "")
 
         msg = bot.send_message(chat_id, "⏳ *جاري جلب الكلمات...*", parse_mode="Markdown")
 
         try:
-            with yt_dlp.YoutubeDL(info_opts) as ydl:
-                info = ydl.extract_info(f"https://www.youtube.com/watch?v={vid}", download=False)
-                video_title = info.get('title', '')
-                if not duration:
-                    duration = info.get('duration', 0)
-
             clean_title = video_title.lower()
             clean_title = re.sub(r'\(official.*?\)|\[.*?\]', '', clean_title)
             clean_title = re.sub(r'\b(video|audio|music|clip|lyric|lyrics)\b', '', clean_title)
@@ -284,14 +284,15 @@ def callback(call):
             bot.send_message(chat_id, "⚠️ عذراً، حدث مشكل أثناء جلب الكلمات.")
             print(f"Lyrics Error: {e}")
 
-    # --- المزيد من النتائج ---
+    # --- جلب المزيد من النتائج ---
     elif data.startswith("more_"):
         query = data.split("_", 1)[1]
         msg = bot.send_message(chat_id, "🔄 *جاري جلب المزيد...*", parse_mode="Markdown")
 
         try:
-            with yt_dlp.YoutubeDL(search_opts) as ydl:
-                info = ydl.extract_info(f"ytsearch10:{query}", download=False)
+            safe_search_opts = {'quiet': True, 'default_search': 'scsearch10', 'nocheckcertificate': True}
+            with yt_dlp.YoutubeDL(safe_search_opts) as ydl:
+                info = ydl.extract_info(f"scsearch10:{query}", download=False)
                 results = info.get('entries', [])
 
             try:
@@ -302,10 +303,12 @@ def callback(call):
             if len(results) > 5:
                 markup = types.InlineKeyboardMarkup()
                 for r in results[5:10]:
-                    markup.add(types.InlineKeyboardButton(
-                        text=f"🎵 {r['title'][:40]}",
-                        callback_data=f"dl|{r['id']}"
-                    ))
+                    track_id = r.get('id')
+                    if track_id:
+                        markup.add(types.InlineKeyboardButton(
+                            text=f"🎵 {r.get('title', 'Audio')[:40]}",
+                            callback_data=f"dl|{track_id}"
+                        ))
                 bot.send_message(chat_id, "➕ *إليك المزيد:*", reply_markup=markup, parse_mode="Markdown")
             else:
                 bot.send_message(chat_id, "❌ لا توجد نتائج إضافية.")
@@ -319,6 +322,6 @@ def callback(call):
             print(f"More Error: {e}")
 
 
-print("✅ البوت شغال بالكامل مع الخلفية...")
+print("✅ البوت مستقر وجاهز للعمل بدون حظر...")
 bot.polling(none_stop=True, interval=1, skip_pending=True)
-                 
+            
