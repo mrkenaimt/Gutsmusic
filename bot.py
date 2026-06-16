@@ -223,7 +223,19 @@ def callback(call):
                 bot.delete_message(chat_id, msg.message_id)
             except Exception:
                 pass
-            bot.send_message(chat_id, f"❌ خطأ في التحميل:\n`{str(e)[:200]}`", parse_mode="Markdown")
+
+            # تشخيص: نجيب قائمة الصيغ المتوفرة فعلياً
+            diag = ""
+            try:
+                with yt_dlp.YoutubeDL({'quiet': True, 'no_warnings': True}) as ydl2:
+                    info2 = ydl2.extract_info(f"https://www.youtube.com/watch?v={vid}", download=False)
+                    fmts = info2.get('formats', [])
+                    audio_fmts = [f"{f.get('format_id')}:{f.get('ext')}:{f.get('acodec')}" for f in fmts if f.get('acodec') != 'none']
+                    diag = f"\n\nصيغ صوتية متوفرة: {audio_fmts[:8]}"
+            except Exception as e2:
+                diag = f"\n\n(فشل التشخيص: {str(e2)[:150]})"
+
+            bot.send_message(chat_id, f"❌ خطأ في التحميل:\n`{str(e)[:200]}`{diag}", parse_mode="Markdown")
 
     # --- جلب الكلمات ---
     elif data.startswith("lyr|"):
@@ -283,3 +295,4 @@ def callback(call):
 
 print("✅ البوت شغال...")
 bot.polling(none_stop=True, interval=1)
+                
